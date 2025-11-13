@@ -509,10 +509,12 @@ Format your response clearly with sections."""
             # Print the output
             print("\n   📄 CLAUDE OUTPUT:")
             print("   " + "-"*76)
-            for line in summary.split('\n')[:50]:  # Limit output
+            summary_lines = summary.split('\n')
+            for line in summary_lines[:50]:  # Limit output
                 print(f"   {line}")
-            if len(summary.split('\n')) > 50:
-                print(f"   ... ({len(summary.split('\n')) - 50} more lines)")
+            if len(summary_lines) > 50:
+                remaining_lines = len(summary_lines) - 50
+                print(f"   ... ({remaining_lines} more lines)")
             print("   " + "-"*76)
             
             print("\n   ⚠️  Note: API mode provides guidance only")
