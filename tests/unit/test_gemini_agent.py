@@ -26,7 +26,7 @@ class TestGeminiAgentInitialization:
         with patch.object(GeminiAgent, '_is_gemini_installed', return_value=True):
             agent = GeminiAgent(api_key="test-key-123")
             assert agent.api_key == "test-key-123"
-            assert agent.model == "gemini-2.5-pro"
+            assert agent.model == "gemini-pro"
             assert agent.output_format == "json"
             assert agent.debug is False
     
@@ -41,7 +41,7 @@ class TestGeminiAgentInitialization:
         """Test initialization fails without API key"""
         with patch.dict(os.environ, {}, clear=True):
             with patch.object(GeminiAgent, '_is_gemini_installed', return_value=True):
-                with pytest.raises(ValueError, match="GEMINI_API_KEY not set"):
+                with pytest.raises(RuntimeError, match="GEMINI_API_KEY not found"):
                     GeminiAgent()
     
     def test_init_custom_model(self):
@@ -65,7 +65,7 @@ class TestGeminiAgentInitialization:
     def test_init_gemini_not_installed(self):
         """Test initialization fails when gemini-cli not installed"""
         with patch.object(GeminiAgent, '_is_gemini_installed', return_value=False):
-            with pytest.raises(RuntimeError, match="gemini-cli is not installed"):
+            with pytest.raises(RuntimeError, match="Gemini CLI is not installed"):
                 GeminiAgent(api_key="test-key")
 
 
@@ -134,7 +134,7 @@ class TestGeminiAgentQuery:
         assert "json" in cmd
     
     @patch('subprocess.run')
-    def test_query_with_include_dirs(self, mock_run, agent):
+    def test_query_with_include_directories(self, mock_run, agent):
         """Test query with include directories"""
         mock_response = {"response": "Response with context"}
         mock_run.return_value = Mock(
@@ -142,7 +142,7 @@ class TestGeminiAgentQuery:
             returncode=0
         )
         
-        result = agent.query("Test prompt", include_dirs=["src", "docs"])
+        result = agent.query("Test prompt", include_directories=["src", "docs"])
         
         call_args = mock_run.call_args
         cmd = call_args[0][0]

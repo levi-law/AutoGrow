@@ -105,8 +105,8 @@ class GeminiAgent:
             "-m", model or self.model
         ]
         
-        if include_dirs:
-            cmd.extend(["--include-directories", ",".join(include_dirs)])
+        if include_directories:
+            cmd.extend(["--include-directories", ",".join(include_directories)])
         
         if yolo:
             cmd.append("--yolo")
