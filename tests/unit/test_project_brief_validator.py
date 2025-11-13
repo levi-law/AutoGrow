@@ -7,13 +7,14 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import sys
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from utils.project_brief_validator import (
     ProjectBriefValidator,
     ValidationResult,
     validate_project_brief,
-    validate_or_exit
+    validate_or_exit,
 )
 
 
@@ -355,8 +356,7 @@ class TestProjectBriefValidator:
     def test_validator_detects_placeholders(self):
         """Test validation detects placeholder text"""
         content_with_placeholders = VALID_PROJECT_BRIEF.replace(
-            "Test Project",
-            "[Your Project Name Here]"
+            "Test Project", "[Your Project Name Here]"
         )
         with TemporaryDirectory() as tmpdir:
             brief_path = Path(tmpdir) / "PROJECT_BRIEF.md"
@@ -408,10 +408,10 @@ Flows
             validator = ProjectBriefValidator(brief_path)
             result = validator.validate()
 
-            assert 'file_size' in result.metadata
-            assert 'line_count' in result.metadata
-            assert result.metadata['file_size'] > 0
-            assert result.metadata['line_count'] > 0
+            assert "file_size" in result.metadata
+            assert "line_count" in result.metadata
+            assert result.metadata["file_size"] > 0
+            assert result.metadata["line_count"] > 0
 
     def test_validator_checklist_detection(self):
         """Test validator detects and analyzes completion checklist"""
@@ -421,14 +421,14 @@ Flows
             validator = ProjectBriefValidator(brief_path)
             result = validator.validate()
 
-            assert 'checklist_progress' in result.metadata
-            assert result.metadata['checklist_progress']['checked'] > 0
+            assert "checklist_progress" in result.metadata
+            assert result.metadata["checklist_progress"]["checked"] > 0
 
     def test_validator_unchecked_checklist_warning(self):
         """Test validator warns about unchecked checklist items"""
         content_with_unchecked = VALID_PROJECT_BRIEF.replace(
             "- [x] All required sections completed",
-            "- [ ] All required sections completed"
+            "- [ ] All required sections completed",
         )
         with TemporaryDirectory() as tmpdir:
             brief_path = Path(tmpdir) / "PROJECT_BRIEF.md"
@@ -501,7 +501,9 @@ Flows
             brief_path.write_text(content_missing_subsections)
             validator = ProjectBriefValidator(brief_path)
             result = validator.validate()
-            assert any("Functional Requirements" in warning for warning in result.warnings)
+            assert any(
+                "Functional Requirements" in warning for warning in result.warnings
+            )
 
 
 class TestConvenienceFunctions:
@@ -548,7 +550,7 @@ class TestRealProjectBrief:
         # Try to find the actual PROJECT_BRIEF.md
         possible_paths = [
             Path(__file__).parent.parent.parent / "PROJECT_BRIEF.md",
-            Path.cwd() / "PROJECT_BRIEF.md"
+            Path.cwd() / "PROJECT_BRIEF.md",
         ]
 
         actual_brief_path = None
@@ -566,5 +568,6 @@ class TestRealProjectBrief:
         print("\n" + result.get_summary())
 
         # The actual brief should be valid
-        assert result.is_valid is True, \
-            f"Actual PROJECT_BRIEF.md failed validation: {result.errors}"
+        assert (
+            result.is_valid is True
+        ), f"Actual PROJECT_BRIEF.md failed validation: {result.errors}"

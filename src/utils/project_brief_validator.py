@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 @dataclass
 class ValidationResult:
     """Result of PROJECT_BRIEF.md validation"""
+
     is_valid: bool
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
@@ -59,7 +60,7 @@ class ProjectBriefValidator:
         "Core Requirements",
         "Technical Preferences",
         "User Roles & Permissions",
-        "Key User Flows"
+        "Key User Flows",
     ]
 
     # Optional but recommended sections
@@ -67,7 +68,7 @@ class ProjectBriefValidator:
         "Data Model",
         "External Integrations",
         "Timeline & Priorities",
-        "Budget & Resources"
+        "Budget & Resources",
     ]
 
     # Required fields in Project Overview
@@ -75,7 +76,7 @@ class ProjectBriefValidator:
         "Project Name",
         "Brief Description",
         "Problem Statement",
-        "Target Users"
+        "Target Users",
     ]
 
     # Minimum content length thresholds (characters)
@@ -107,12 +108,14 @@ class ProjectBriefValidator:
 
         # Check file exists
         if not self.project_brief_path.exists():
-            result.add_error(f"PROJECT_BRIEF.md not found at: {self.project_brief_path}")
+            result.add_error(
+                f"PROJECT_BRIEF.md not found at: {self.project_brief_path}"
+            )
             return result
 
         # Read file content
         try:
-            content = self.project_brief_path.read_text(encoding='utf-8')
+            content = self.project_brief_path.read_text(encoding="utf-8")
         except Exception as e:
             result.add_error(f"Failed to read PROJECT_BRIEF.md: {e}")
             return result
@@ -122,8 +125,8 @@ class ProjectBriefValidator:
             return result
 
         # Store metadata
-        result.metadata['file_size'] = len(content)
-        result.metadata['line_count'] = content.count('\n') + 1
+        result.metadata["file_size"] = len(content)
+        result.metadata["line_count"] = content.count("\n") + 1
 
         # Validate structure
         self._validate_sections(content, result)
@@ -145,22 +148,28 @@ class ProjectBriefValidator:
     def _validate_sections(self, content: str, result: ValidationResult):
         """Validate that required sections exist"""
         # Extract all headers (## Section Name)
-        headers = re.findall(r'^##\s+(.+)$', content, re.MULTILINE)
+        headers = re.findall(r"^##\s+(.+)$", content, re.MULTILINE)
 
-        result.metadata['sections_found'] = headers
+        result.metadata["sections_found"] = headers
 
         # Check required sections
         for required_section in self.REQUIRED_SECTIONS:
             # Use emoji-agnostic matching
-            pattern = re.compile(r'##\s+[🎯📋🏗️👥🔄]?\s*' + re.escape(required_section), re.IGNORECASE)
+            pattern = re.compile(
+                r"##\s+[🎯📋🏗️👥🔄]?\s*" + re.escape(required_section), re.IGNORECASE
+            )
             if not pattern.search(content):
                 result.add_error(f"Missing required section: '{required_section}'")
 
         # Check recommended sections
         for recommended_section in self.RECOMMENDED_SECTIONS:
-            pattern = re.compile(r'##\s+[🗄️🔌📅💰]?\s*' + re.escape(recommended_section), re.IGNORECASE)
+            pattern = re.compile(
+                r"##\s+[🗄️🔌📅💰]?\s*" + re.escape(recommended_section), re.IGNORECASE
+            )
             if not pattern.search(content):
-                result.add_warning(f"Missing recommended section: '{recommended_section}'")
+                result.add_warning(
+                    f"Missing recommended section: '{recommended_section}'"
+                )
 
     def _validate_content(self, content: str, result: ValidationResult):
         """Validate overall content quality"""
@@ -173,12 +182,12 @@ class ProjectBriefValidator:
 
         # Check for placeholder text
         placeholder_patterns = [
-            r'\[.*?\]',  # [Placeholder text]
-            r'TODO',
-            r'FIXME',
-            r'TBD',
-            r'Fill.*here',
-            r'Your.*here'
+            r"\[.*?\]",  # [Placeholder text]
+            r"TODO",
+            r"FIXME",
+            r"TBD",
+            r"Fill.*here",
+            r"Your.*here",
         ]
 
         placeholders_found = []
@@ -196,9 +205,9 @@ class ProjectBriefValidator:
         """Validate Project Overview section"""
         # Extract overview section
         overview_match = re.search(
-            r'##\s+[🎯]?\s*Project Overview\s*\n(.*?)(?=\n##|\Z)',
+            r"##\s+[🎯]?\s*Project Overview\s*\n(.*?)(?=\n##|\Z)",
             content,
-            re.DOTALL | re.IGNORECASE
+            re.DOTALL | re.IGNORECASE,
         )
 
         if not overview_match:
@@ -209,22 +218,32 @@ class ProjectBriefValidator:
 
         # Check required fields
         for field in self.REQUIRED_OVERVIEW_FIELDS:
-            pattern = re.compile(r'\*\*' + re.escape(field) + r'\*\*\s*:\s*(.+)', re.IGNORECASE)
+            pattern = re.compile(
+                r"\*\*" + re.escape(field) + r"\*\*\s*:\s*(.+)", re.IGNORECASE
+            )
             match = pattern.search(overview_content)
 
             if not match:
-                result.add_error(f"Missing required field in Project Overview: '{field}'")
+                result.add_error(
+                    f"Missing required field in Project Overview: '{field}'"
+                )
             else:
                 # Check field content length
                 field_content = match.group(1).strip()
 
-                if field == "Brief Description" and len(field_content) < self.MIN_DESCRIPTION_LENGTH:
+                if (
+                    field == "Brief Description"
+                    and len(field_content) < self.MIN_DESCRIPTION_LENGTH
+                ):
                     result.add_warning(
                         f"'{field}' is too short ({len(field_content)} chars). "
                         f"Recommended minimum: {self.MIN_DESCRIPTION_LENGTH} characters"
                     )
 
-                if field == "Problem Statement" and len(field_content) < self.MIN_PROBLEM_STATEMENT_LENGTH:
+                if (
+                    field == "Problem Statement"
+                    and len(field_content) < self.MIN_PROBLEM_STATEMENT_LENGTH
+                ):
                     result.add_warning(
                         f"'{field}' is too short ({len(field_content)} chars). "
                         f"Recommended minimum: {self.MIN_PROBLEM_STATEMENT_LENGTH} characters"
@@ -233,9 +252,9 @@ class ProjectBriefValidator:
     def _validate_requirements_section(self, content: str, result: ValidationResult):
         """Validate Core Requirements section"""
         requirements_match = re.search(
-            r'##\s+[📋]?\s*Core Requirements\s*\n(.*?)(?=\n##|\Z)',
+            r"##\s+[📋]?\s*Core Requirements\s*\n(.*?)(?=\n##|\Z)",
             content,
-            re.DOTALL | re.IGNORECASE
+            re.DOTALL | re.IGNORECASE,
         )
 
         if not requirements_match:
@@ -252,8 +271,12 @@ class ProjectBriefValidator:
             )
 
         # Check for both functional and non-functional requirements
-        has_functional = re.search(r'Functional Requirements', requirements_content, re.IGNORECASE)
-        has_non_functional = re.search(r'Non-Functional Requirements', requirements_content, re.IGNORECASE)
+        has_functional = re.search(
+            r"Functional Requirements", requirements_content, re.IGNORECASE
+        )
+        has_non_functional = re.search(
+            r"Non-Functional Requirements", requirements_content, re.IGNORECASE
+        )
 
         if not has_functional:
             result.add_warning("Missing 'Functional Requirements' subsection")
@@ -262,7 +285,9 @@ class ProjectBriefValidator:
             result.add_warning("Missing 'Non-Functional Requirements' subsection")
 
         # Count requirements (numbered or bulleted lists)
-        functional_reqs = len(re.findall(r'^\s*[\d\-\*]\.\s+', requirements_content, re.MULTILINE))
+        functional_reqs = len(
+            re.findall(r"^\s*[\d\-\*]\.\s+", requirements_content, re.MULTILINE)
+        )
 
         if functional_reqs < 3:
             result.add_warning(
@@ -272,8 +297,12 @@ class ProjectBriefValidator:
     def _check_common_issues(self, content: str, result: ValidationResult):
         """Check for common issues and anti-patterns"""
         # Check for excessively long lines
-        lines = content.split('\n')
-        long_lines = [i + 1 for i, line in enumerate(lines) if len(line) > 200 and not line.startswith('http')]
+        lines = content.split("\n")
+        long_lines = [
+            i + 1
+            for i, line in enumerate(lines)
+            if len(line) > 200 and not line.startswith("http")
+        ]
 
         if long_lines:
             result.add_warning(
@@ -282,30 +311,33 @@ class ProjectBriefValidator:
             )
 
         # Check for empty sections
-        empty_sections = re.findall(r'##\s+(.+)\s*\n\s*\n##', content)
+        empty_sections = re.findall(r"##\s+(.+)\s*\n\s*\n##", content)
         if empty_sections:
-            result.add_error(
-                f"Found empty sections: {', '.join(empty_sections[:3])}"
-            )
+            result.add_error(f"Found empty sections: {', '.join(empty_sections[:3])}")
 
         # Check completion checklist if exists
-        if '## ✅ Completion Checklist' in content or '## Completion Checklist' in content:
+        if (
+            "## ✅ Completion Checklist" in content
+            or "## Completion Checklist" in content
+        ):
             # Check if checklist items are marked complete
             checklist_match = re.search(
-                r'##\s+[✅]?\s*Completion Checklist\s*\n(.*?)(?=\n##|\Z)',
+                r"##\s+[✅]?\s*Completion Checklist\s*\n(.*?)(?=\n##|\Z)",
                 content,
-                re.DOTALL | re.IGNORECASE
+                re.DOTALL | re.IGNORECASE,
             )
 
             if checklist_match:
                 checklist_content = checklist_match.group(1)
-                unchecked = len(re.findall(r'-\s+\[\s\]', checklist_content))
-                checked = len(re.findall(r'-\s+\[x\]', checklist_content, re.IGNORECASE))
+                unchecked = len(re.findall(r"-\s+\[\s\]", checklist_content))
+                checked = len(
+                    re.findall(r"-\s+\[x\]", checklist_content, re.IGNORECASE)
+                )
 
-                result.metadata['checklist_progress'] = {
-                    'checked': checked,
-                    'unchecked': unchecked,
-                    'total': checked + unchecked
+                result.metadata["checklist_progress"] = {
+                    "checked": checked,
+                    "unchecked": unchecked,
+                    "total": checked + unchecked,
                 }
 
                 if unchecked > 0:
@@ -315,7 +347,9 @@ class ProjectBriefValidator:
                     )
 
 
-def validate_project_brief(project_brief_path: Optional[Path] = None) -> ValidationResult:
+def validate_project_brief(
+    project_brief_path: Optional[Path] = None,
+) -> ValidationResult:
     """
     Convenience function to validate PROJECT_BRIEF.md
 

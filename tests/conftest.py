@@ -23,9 +23,11 @@ def project_root():
 @pytest.fixture
 def mock_env_vars(monkeypatch):
     """Fixture to mock environment variables"""
+
     def _set_env(**kwargs):
         for key, value in kwargs.items():
             monkeypatch.setenv(key, value)
+
     return _set_env
 
 
@@ -38,7 +40,7 @@ def clean_env(monkeypatch):
         "ANTHROPIC_API_KEY",
         "GITHUB_TOKEN",
         "GOOGLE_API_KEY",
-        "GOOGLE_CLOUD_PROJECT"
+        "GOOGLE_CLOUD_PROJECT",
     ]
     for key in keys_to_remove:
         monkeypatch.delenv(key, raising=False)
@@ -47,11 +49,10 @@ def clean_env(monkeypatch):
 def pytest_configure(config):
     """Configure pytest with custom markers"""
     config.addinivalue_line(
-        "markers", "integration: mark test as integration test (requires external services)"
+        "markers",
+        "integration: mark test as integration test (requires external services)",
     )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
+    config.addinivalue_line("markers", "slow: mark test as slow running")
     config.addinivalue_line(
         "markers", "requires_api_key: mark test as requiring API key"
     )

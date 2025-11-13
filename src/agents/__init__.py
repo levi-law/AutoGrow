@@ -11,4 +11,4 @@ from .issue_generator import IssueGenerator
 from .issue_resolver import IssueResolver
 from .qa_agent import QAAgent
 
-__all__ = ['IssueGenerator', 'IssueResolver', 'QAAgent']
+__all__ = ["IssueGenerator", "IssueResolver", "QAAgent"]

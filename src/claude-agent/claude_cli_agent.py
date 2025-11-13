@@ -16,18 +16,18 @@ class ClaudeAgent:
     Python wrapper for Claude Code CLI in headless mode.
     Enables programmatic access to Claude's capabilities.
     """
-    
+
     def __init__(
         self,
         output_format: str = "json",
         verbose: bool = False,
         allowed_tools: Optional[List[str]] = None,
         disallowed_tools: Optional[List[str]] = None,
-        permission_mode: Optional[str] = None
+        permission_mode: Optional[str] = None,
     ):
         """
         Initialize the Claude CLI Agent.
-        
+
         Args:
             output_format: Output format (text, json, stream-json)
             verbose: Enable verbose output
@@ -40,98 +40,92 @@ class ClaudeAgent:
         self.allowed_tools = allowed_tools
         self.disallowed_tools = disallowed_tools
         self.permission_mode = permission_mode
-        
+
         # Check if claude CLI is installed
         if not self._is_claude_installed():
             raise RuntimeError(
                 "Claude Code CLI is not installed. Install it from:\n"
                 "  https://code.claude.com/"
             )
-    
+
     def _is_claude_installed(self) -> bool:
         """Check if claude CLI is installed."""
         try:
-            subprocess.run(
-                ["claude", "--version"],
-                capture_output=True,
-                check=True
-            )
+            subprocess.run(["claude", "--version"], capture_output=True, check=True)
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
-    
+
     def _build_command(
-        self,
-        prompt: str,
-        additional_args: Optional[List[str]] = None
+        self, prompt: str, additional_args: Optional[List[str]] = None
     ) -> List[str]:
         """
         Build the claude CLI command.
-        
+
         Args:
             prompt: The prompt to send
             additional_args: Additional command line arguments
-            
+
         Returns:
             List of command arguments
         """
         cmd = ["claude", "-p", prompt]
-        
+
         # Add output format
         if self.output_format:
             cmd.extend(["--output-format", self.output_format])
-        
+
         # Add verbose flag
         if self.verbose:
             cmd.append("--verbose")
-        
+
         # Add allowed tools
         if self.allowed_tools:
             cmd.extend(["--allowedTools", ",".join(self.allowed_tools)])
-        
+
         # Add disallowed tools
         if self.disallowed_tools:
             cmd.extend(["--disallowedTools", ",".join(self.disallowed_tools)])
-        
+
         # Add permission mode
         if self.permission_mode:
             cmd.extend(["--permission-mode", self.permission_mode])
-        
+
         # Add any additional arguments
         if additional_args:
             cmd.extend(additional_args)
-        
+
         return cmd
-    
+
     def query(
         self,
         prompt: str,
         system_prompt: Optional[str] = None,
         mcp_config: Optional[str] = None,
-        stream_output: bool = False
+        stream_output: bool = False,
     ) -> Dict[str, Any]:
         """
         Send a query to Claude in headless mode.
-        
+
         Args:
             prompt: The prompt to send
             system_prompt: Additional system prompt
             mcp_config: Path to MCP configuration file
             stream_output: If True, print output in real-time
-            
+
         Returns:
             Dict containing response and metadata
         """
         additional_args = []
-        
+
         if system_prompt:
             additional_args.extend(["--append-system-prompt", system_prompt])
-        
+
         if mcp_config:
             additional_args.extend(["--mcp-config", mcp_config])
-        
+
         cmd = self._build_command(prompt, additional_args)
-        
+
         try:
             if stream_output:
                 # Stream output in real-time
@@ -140,48 +134,46 @@ class ClaudeAgent:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    bufsize=1
+                    bufsize=1,
                 )
-                
+
                 stdout_lines = []
                 stderr_lines = []
-                
+
                 # Read stdout in real-time
                 for line in process.stdout:
-                    print(line, end='', flush=True)
+                    print(line, end="", flush=True)
                     stdout_lines.append(line)
-                
+
                 # Wait for completion and get stderr
                 process.wait()
                 stderr_output = process.stderr.read()
-                
-                stdout_text = ''.join(stdout_lines)
-                
+
+                stdout_text = "".join(stdout_lines)
+
                 # Handle stderr - distinguish between warnings and errors
                 if stderr_output:
                     stderr_lower = stderr_output.lower()
                     is_warning_only = (
-                        "warn:" in stderr_lower or 
-                        "warning:" in stderr_lower
+                        "warn:" in stderr_lower or "warning:" in stderr_lower
                     ) and stdout_text.strip()  # Has actual output
-                    
+
                     if is_warning_only:
                         print(f"\n⚠️  Warning: {stderr_output.strip()}", flush=True)
                     else:
                         print(f"\n❌ Error: {stderr_output}", flush=True)
                         stderr_lines.append(stderr_output)
-                
+
                 # Only raise error if returncode is non-zero AND it's not just a warning
                 if process.returncode != 0:
                     stderr_lower = stderr_output.lower() if stderr_output else ""
                     is_warning_only = (
-                        "warn:" in stderr_lower or 
-                        "warning:" in stderr_lower
+                        "warn:" in stderr_lower or "warning:" in stderr_lower
                     ) and stdout_text.strip()
-                    
+
                     if not is_warning_only:
                         raise RuntimeError(f"Claude CLI error: {stderr_output}")
-                
+
                 if self.output_format == "json":
                     return json.loads(stdout_text)
                 else:
@@ -192,19 +184,18 @@ class ClaudeAgent:
                     cmd,
                     capture_output=True,
                     text=True,
-                    check=False  # Don't raise on non-zero exit, we'll check manually
+                    check=False,  # Don't raise on non-zero exit, we'll check manually
                 )
-                
+
                 # Check if there's actual output despite warnings in stderr
                 # Bun/AVX warnings shouldn't be treated as fatal errors
                 if result.returncode != 0:
                     # Check if stderr contains only warnings (not actual errors)
                     stderr_lower = result.stderr.lower() if result.stderr else ""
                     is_warning_only = (
-                        "warn:" in stderr_lower or 
-                        "warning:" in stderr_lower
+                        "warn:" in stderr_lower or "warning:" in stderr_lower
                     ) and result.stdout.strip()  # Has actual output
-                    
+
                     if not is_warning_only:
                         # Provide more context in error message
                         error_msg = f"Claude CLI error (exit code {result.returncode})"
@@ -218,80 +209,74 @@ class ClaudeAgent:
                     else:
                         # Log warning but continue
                         if self.verbose and result.stderr:
-                            print(f"⚠️  Warning from Claude CLI: {result.stderr.strip()}", flush=True)
-                
+                            print(
+                                f"⚠️  Warning from Claude CLI: {result.stderr.strip()}",
+                                flush=True,
+                            )
+
                 # Check if we have any output
                 if not result.stdout or not result.stdout.strip():
                     error_msg = "Claude CLI returned no output"
                     if result.stderr:
                         error_msg += f"\nStderr: {result.stderr}"
                     raise RuntimeError(error_msg)
-                
+
                 if self.output_format == "json":
                     return json.loads(result.stdout)
                 else:
                     return {"result": result.stdout}
-                
+
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Claude CLI error: {e.stderr}")
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Failed to parse JSON response: {e}")
-    
+
     def query_with_stdin(
-        self,
-        prompt: str,
-        stdin_content: str,
-        system_prompt: Optional[str] = None
+        self, prompt: str, stdin_content: str, system_prompt: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Send a query with stdin input.
-        
+
         Args:
             prompt: The prompt to send
             stdin_content: Content to send via stdin
             system_prompt: Additional system prompt
-            
+
         Returns:
             Dict containing response and metadata
         """
         additional_args = []
-        
+
         if system_prompt:
             additional_args.extend(["--append-system-prompt", system_prompt])
-        
+
         cmd = self._build_command(prompt, additional_args)
-        
+
         try:
             result = subprocess.run(
-                cmd,
-                input=stdin_content,
-                capture_output=True,
-                text=True,
-                check=True
+                cmd, input=stdin_content, capture_output=True, text=True, check=True
             )
-            
+
             if self.output_format == "json":
                 return json.loads(result.stdout)
             else:
                 return {"result": result.stdout}
-                
+
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Claude CLI error: {e.stderr}")
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Failed to parse JSON response: {e}")
-    
+
     def continue_conversation(
-        self,
-        prompt: str,
-        session_id: Optional[str] = None
+        self, prompt: str, session_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Continue a previous conversation.
-        
+
         Args:
             prompt: The prompt to send
             session_id: Session ID to resume (None for most recent)
-            
+
         Returns:
             Dict containing response and metadata
         """
@@ -299,45 +284,40 @@ class ClaudeAgent:
             cmd = ["claude", "--resume", session_id, prompt]
         else:
             cmd = ["claude", "--continue", prompt]
-        
+
         # Add output format
         if self.output_format:
             cmd.extend(["--output-format", self.output_format])
-        
+
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+
             if self.output_format == "json":
                 return json.loads(result.stdout)
             else:
                 return {"result": result.stdout}
-                
+
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Claude CLI error: {e.stderr}")
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Failed to parse JSON response: {e}")
-    
+
     def code_review(self, file_path: str) -> Dict[str, Any]:
         """
         Perform a code review on a file.
-        
+
         Args:
             file_path: Path to the file to review
-            
+
         Returns:
             Dict containing review results
         """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
-        
-        with open(file_path, 'r') as f:
+
+        with open(file_path, "r") as f:
             file_content = f.read()
-        
+
         prompt = f"""Review this code for:
         1. Security vulnerabilities
         2. Performance issues
@@ -348,25 +328,25 @@ class ClaudeAgent:
         File: {file_path}
         
         Provide a structured analysis with severity levels."""
-        
+
         return self.query_with_stdin(prompt, file_content)
-    
+
     def generate_docs(self, file_path: str) -> Dict[str, Any]:
         """
         Generate documentation for a file.
-        
+
         Args:
             file_path: Path to the file to document
-            
+
         Returns:
             Dict containing generated documentation
         """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
-        
-        with open(file_path, 'r') as f:
+
+        with open(file_path, "r") as f:
             file_content = f.read()
-        
+
         prompt = f"""Generate comprehensive documentation for this code including:
         1. Overview and purpose
         2. Function/class descriptions
@@ -377,26 +357,26 @@ class ClaudeAgent:
         File: {file_path}
         
         Format as Markdown."""
-        
+
         return self.query_with_stdin(prompt, file_content)
-    
+
     def fix_code(self, file_path: str, issue_description: str) -> Dict[str, Any]:
         """
         Fix code issues.
-        
+
         Args:
             file_path: Path to the file to fix
             issue_description: Description of the issue to fix
-            
+
         Returns:
             Dict containing fix results
         """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
-        
-        with open(file_path, 'r') as f:
+
+        with open(file_path, "r") as f:
             file_content = f.read()
-        
+
         prompt = f"""Fix the following issue in this code:
 
         Issue: {issue_description}
@@ -404,64 +384,56 @@ class ClaudeAgent:
         File: {file_path}
         
         Provide the fixed code and explanation of changes."""
-        
+
         return self.query_with_stdin(prompt, file_content)
-    
+
     def batch_process(
-        self,
-        directory: str,
-        prompt: str,
-        file_pattern: str = "*.py"
+        self, directory: str, prompt: str, file_pattern: str = "*.py"
     ) -> List[Dict[str, Any]]:
         """
         Process multiple files in a directory.
-        
+
         Args:
             directory: Directory to process
             prompt: Prompt to apply to each file
             file_pattern: Glob pattern for files to process
-            
+
         Returns:
             List of results for each file
         """
         results = []
         path = Path(directory)
-        
+
         for file_path in path.rglob(file_pattern):
             if file_path.is_file():
                 try:
-                    with open(file_path, 'r') as f:
+                    with open(file_path, "r") as f:
                         content = f.read()
-                    
+
                     result = self.query_with_stdin(
-                        f"{prompt}\n\nFile: {file_path}",
-                        content
+                        f"{prompt}\n\nFile: {file_path}", content
                     )
-                    results.append({
-                        "file": str(file_path),
-                        "result": result,
-                        "success": True
-                    })
+                    results.append(
+                        {"file": str(file_path), "result": result, "success": True}
+                    )
                 except Exception as e:
-                    results.append({
-                        "file": str(file_path),
-                        "error": str(e),
-                        "success": False
-                    })
-        
+                    results.append(
+                        {"file": str(file_path), "error": str(e), "success": False}
+                    )
+
         return results
 
 
 def main():
     """Example usage of ClaudeAgent."""
     import sys
-    
+
     try:
         agent = ClaudeAgent(verbose=True)
-        
+
         print("🤖 Claude CLI Agent - Python Interface")
         print("=" * 50)
-        
+
         # Example 1: Simple query
         print("\n1. Simple Query:")
         result = agent.query("What are the best practices for Python error handling?")
@@ -469,7 +441,7 @@ def main():
             print(result["result"])
         else:
             print(json.dumps(result, indent=2))
-        
+
         # Example 2: Code review (if file provided)
         if len(sys.argv) > 1:
             file_path = sys.argv[1]
@@ -479,7 +451,7 @@ def main():
                 print(result["result"])
             else:
                 print(json.dumps(result, indent=2))
-        
+
     except Exception as e:
         print(f"❌ Error: {e}")
         sys.exit(1)
