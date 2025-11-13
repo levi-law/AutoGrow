@@ -91,7 +91,7 @@ IMPORTANT: Only suggest realistic, actionable issues."""
 
 # Call Claude
 message = anthropic.messages.create(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-sonnet-4-5",
     max_tokens=2048,
     messages=[{"role": "user", "content": prompt}]
 )
