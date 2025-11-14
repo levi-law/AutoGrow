@@ -13,8 +13,13 @@ from pathlib import Path
 
 # Add src directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "gemini-agent"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from gemini_agent import GeminiAgent
+from utils.exceptions import (
+    ConfigurationError,
+    FileOperationError,
+)
 
 
 @pytest.fixture
@@ -244,15 +249,15 @@ class TestGeminiAgentIntegrationErrorHandling:
 
     @pytest.mark.integration
     def test_invalid_api_key(self):
-        """Test with invalid API key"""
-        with pytest.raises(RuntimeError):
+        """Test with invalid API key (gemini-cli not installed)"""
+        with pytest.raises(ConfigurationError):
             agent = GeminiAgent(api_key="invalid_key_12345")
             agent.query("test")
 
     @pytest.mark.integration
     def test_file_not_found(self, agent):
         """Test with non-existent file"""
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(FileOperationError):
             agent.query_with_file("test", "/nonexistent/file.py")
 
     @pytest.mark.integration

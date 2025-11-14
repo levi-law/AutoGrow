@@ -13,8 +13,13 @@ from pathlib import Path
 
 # Add src directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "claude-agent"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from claude_cli_agent import ClaudeAgent
+from utils.exceptions import (
+    AgentError,
+    FileNotFoundError as CustomFileNotFoundError,
+)
 
 
 @pytest.fixture
@@ -22,7 +27,7 @@ def agent():
     """Create a real ClaudeAgent instance"""
     try:
         return ClaudeAgent(output_format="json")
-    except RuntimeError as e:
+    except AgentError as e:
         pytest.skip(f"Claude CLI not available: {e}")
 
 
@@ -327,18 +332,19 @@ class TestClaudeAgentIntegrationErrorHandling:
     @pytest.mark.integration
     def test_file_not_found(self, agent):
         """Test with non-existent file"""
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(CustomFileNotFoundError):
             agent.code_review("/nonexistent/file.py")
 
     @pytest.mark.integration
-    def test_invalid_file_in_batch(self, agent, tmp_path):
-        """Test batch processing with invalid files"""
-        # This should handle errors gracefully
-        results = agent.batch_process(
-            "/nonexistent/directory", "test", file_pattern="*.py"
-        )
+    def test_invalid_file_in_batch(self, agent):
+        """Test batch processing with invalid directory"""
+        with pytest.raises(CustomFileNotFoundError):
+            results = agent.batch_process(
+                "/nonexistent/directory", "test", file_pattern="*.py"
+            )
 
         # Should return empty list or handle gracefully
+        assert results == []
         assert isinstance(results, list)
 
 
