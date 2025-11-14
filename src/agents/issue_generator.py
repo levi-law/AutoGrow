@@ -16,11 +16,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import model configuration
 from models_config import CLAUDE_MODELS, SystemPrompts
-from utils.retry import retry_anthropic_api, retry_github_api
 from utils.deduplication import IssueDuplicateChecker
 from utils.outcome_tracker import OutcomeTracker
 from utils.feedback_analyzer import FeedbackAnalyzer
 from utils.rate_limiter import RateLimiter, RateLimitConfig
+from utils.project_brief_validator import get_project_brief
+from utils.github_helpers import get_readme, get_recent_commits, get_open_issues, create_issue
+from utils.anthropic_helpers import call_anthropic_api
 from utils.exceptions import (
     AgentResponseError,
     JSONParseError,
@@ -122,16 +124,11 @@ class IssueGenerator:
             return False
 
         # Count open issues (excluding pull requests) with retry
-        @retry_github_api
-        def get_open_issues():
-            return list(self.repo.get_issues(state="open"))
-
         try:
-            open_issues = get_open_issues()
+            open_issues = get_open_issues(self.repo, exclude_pull_requests=True)
         except Exception as e:
             raise get_exception_for_github_error(e, "Failed to fetch open issues")
 
-        open_issues = [i for i in open_issues if not i.pull_request]
         issue_count = len(open_issues)
 
         logger.info(f"Current open issues: {issue_count}")
@@ -158,27 +155,22 @@ class IssueGenerator:
         # Get repository context with retry
         logger.info("Analyzing repository for potential issues...")
 
-        @retry_github_api
-        def get_readme():
-            try:
-                return self.repo.get_readme().decoded_content.decode("utf-8")[:1000]
-            except Exception as e:
-                logger.warning(f"Failed to fetch README: {e}")
-                return "No README found"
-
-        @retry_github_api
-        def get_commits():
-            return list(self.repo.get_commits()[:5])
-
         try:
-            readme = get_readme()
-            recent_commits = get_commits()
+            readme = get_readme(self.repo, max_length=1000)
+            recent_commits = get_recent_commits(self.repo, max_commits=5)
         except Exception as e:
             raise get_exception_for_github_error(e, "Failed to fetch repository context")
 
         commit_messages = "\n".join(
             [f"- {c.commit.message.split(chr(10))[0]}" for c in recent_commits]
         )
+
+        # Load project brief
+        project_brief = get_project_brief()
+        if not project_brief:
+            logger.warning("No PROJECT_BRIEF.md found")
+        else:
+            logger.info("Loaded PROJECT_BRIEF.md context")
 
         # Get feedback-based generation guidance
         logger.info("Analyzing feedback data for adaptive generation...")
@@ -198,7 +190,7 @@ class IssueGenerator:
             logger.info("No historical data yet - using default generation")
 
         # Build prompt for Claude with adaptive guidance
-        prompt = self._build_prompt(needed, readme, commit_messages, open_issues, guidance)
+        prompt = self._build_prompt(needed, readme, commit_messages, open_issues, project_brief, guidance)
 
         logger.debug(f"Prompt length: {len(prompt)} chars")
 
@@ -212,7 +204,7 @@ class IssueGenerator:
         self._parse_and_create_issues(response_text, needed, open_issues)
 
     def _build_prompt(
-        self, needed: int, readme: str, commit_messages: str, open_issues: List, guidance = None
+        self, needed: int, readme: str, commit_messages: str, open_issues: List, project_brief: str = "", guidance = None
     ) -> str:
         """Build the prompt for Claude with adaptive guidance"""
         base_prompt = f"""Analyze this GitHub repository and suggest {needed} new issue(s).
@@ -227,6 +219,9 @@ Recent commits:
 
 Current open issues:
 {chr(10).join([f"- #{i.number}: {i.title}" for i in open_issues[:10]])}
+
+Project Context:
+{project_brief}
 
 Generate {needed} realistic, actionable issue(s).
 Read the whole project and find the most important thing for it - from new features, UI, apps, marketing or sales tools to bug fixes, tests, devops etc."""
@@ -274,19 +269,13 @@ Keep descriptions brief and output ONLY the JSON, nothing else."""
                     return str(result)
             else:
                 logger.info("Using Anthropic API for issue generation")
-
-                @retry_anthropic_api
-                def call_anthropic():
-                    client = Anthropic(api_key=self.anthropic_api_key)
-                    return client.messages.create(
-                        model=CLAUDE_MODELS.ISSUE_GENERATION,
-                        max_tokens=CLAUDE_MODELS.DEFAULT_MAX_TOKENS,
-                        system=SystemPrompts.ISSUE_GENERATOR,
-                        messages=[{"role": "user", "content": prompt}],
-                    )
-
-                message = call_anthropic()
-                return message.content[0].text
+                return call_anthropic_api(
+                    api_key=self.anthropic_api_key,
+                    prompt=prompt,
+                    model=CLAUDE_MODELS.ISSUE_GENERATION,
+                    max_tokens=CLAUDE_MODELS.DEFAULT_MAX_TOKENS,
+                    system_prompt=SystemPrompts.ISSUE_GENERATOR
+                )
 
         except Exception as e:
             logger.exception("Error calling Claude API")
@@ -367,14 +356,8 @@ Keep descriptions brief and output ONLY the JSON, nothing else."""
                     logger.info(f"DRY MODE: Would create issue: {title}", extra={"labels": labels})
                     created_count += 1
                 else:
-                    @retry_github_api
-                    def create_issue():
-                        return self.repo.create_issue(
-                            title=title, body=full_body, labels=labels
-                        )
-
                     try:
-                        new_issue = create_issue()
+                        new_issue = create_issue(self.repo, title=title, body=full_body, labels=labels)
                         created_count += 1
                         logger.info(f"Created issue #{new_issue.number}: {title}")
                     except Exception as e:

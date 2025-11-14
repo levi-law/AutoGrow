@@ -21,7 +21,8 @@ from logging_config import get_logger
 
 # Import model configuration
 from models_config import CLAUDE_MODELS, SystemPrompts
-from utils.retry import retry_anthropic_api, retry_github_api
+from utils.github_helpers import get_recent_commits, create_issue, get_recent_issues, get_repo_info
+from utils.anthropic_helpers import call_anthropic_api
 
 # Import exception classes
 from utils.exceptions import (
@@ -131,27 +132,17 @@ class QAAgent:
 
         try:
             # Get repository info with retry
-            @retry_github_api
-            def get_repo_info():
-                return {
-                    "name": self.repo.name,
-                    "description": self.repo.description,
-                    "open_issues_count": self.repo.open_issues_count,
-                    "stargazers_count": self.repo.stargazers_count,
-                    "language": self.repo.language,
-                }
-
-            context["repo_info"] = get_repo_info()
+            context["repo_info"] = get_repo_info(self.repo)
 
             # Get recent issues with retry
-            @retry_github_api
-            def get_issues():
-                return list(
-                    self.repo.get_issues(state="all", sort="updated", direction="desc")
-                )[: self.max_issues]
-
             logger.info(f"Reviewing {self.max_issues} recent issues...")
-            issues = get_issues()
+            issues = get_recent_issues(
+                self.repo, 
+                max_issues=self.max_issues, 
+                state="all", 
+                sort="updated", 
+                direction="desc"
+            )
             for issue in issues:
                 if issue.pull_request:
                     continue
@@ -192,12 +183,8 @@ class QAAgent:
                 )
 
             # Get recent commits with retry
-            @retry_github_api
-            def get_commits():
-                return list(self.repo.get_commits())[: self.max_commits]
-
             logger.info(f"Reviewing {self.max_commits} recent commits...")
-            commits = get_commits()
+            commits = get_recent_commits(self.repo, max_commits=self.max_commits)
             for commit in commits:
                 context["commits"].append(
                     {
@@ -318,19 +305,13 @@ Output ONLY the JSON, nothing else.
                     response_text = str(result)
             else:
                 logger.info("Using Anthropic API...")
-
-                @retry_anthropic_api
-                def call_anthropic():
-                    client = Anthropic(api_key=self.anthropic_api_key)
-                    return client.messages.create(
-                        model=CLAUDE_MODELS.QA_ANALYSIS,
-                        max_tokens=CLAUDE_MODELS.QA_MAX_TOKENS,
-                        system=SystemPrompts.QA_ENGINEER,
-                        messages=[{"role": "user", "content": prompt}],
-                    )
-
-                message = call_anthropic()
-                response_text = message.content[0].text
+                response_text = call_anthropic_api(
+                    api_key=self.anthropic_api_key,
+                    prompt=prompt,
+                    model=CLAUDE_MODELS.QA_ANALYSIS,
+                    max_tokens=CLAUDE_MODELS.QA_MAX_TOKENS,
+                    system_prompt=SystemPrompts.QA_ENGINEER
+                )
 
             logger.info(f"Received response ({len(response_text)} chars)")
             return response_text
@@ -496,14 +477,8 @@ Output ONLY the JSON, nothing else.
 
         # Create the issue with retry
         try:
-            @retry_github_api
-            def create_issue():
-                issue_title = f"QA Report: {summary[:60]}"
-                return self.repo.create_issue(
-                    title=issue_title, body=body, labels=labels
-                )
-
-            new_issue = create_issue()
+            issue_title = f"QA Report: {summary[:60]}"
+            new_issue = create_issue(self.repo, title=issue_title, body=body, labels=labels)
             logger.info(f"Created QA issue #{new_issue.number}: {new_issue.title}")
             return new_issue
 

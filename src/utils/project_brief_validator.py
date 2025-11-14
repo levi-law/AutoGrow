@@ -404,3 +404,28 @@ def validate_or_exit(project_brief_path: Optional[Path] = None) -> None:
 
     if result.warnings:
         logger.warning("Consider addressing the warnings for better AI generation results.")
+
+
+def get_project_brief(max_length: int = 5000) -> str:
+    """
+    Load PROJECT_BRIEF.md content if it exists
+    
+    Args:
+        max_length: Maximum length of content to return (default: 5000 chars)
+    
+    Returns:
+        str: Content of PROJECT_BRIEF.md or empty string if not found
+    """
+    project_brief_path = Path("PROJECT_BRIEF.md")
+    
+    if not project_brief_path.exists():
+        return ""
+    
+    try:
+        with open(project_brief_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        # Limit to reasonable size to avoid token limits
+        return content[:max_length]
+    except Exception as e:
+        logger.warning(f"Failed to read PROJECT_BRIEF.md: {e}")
+        return ""
