@@ -205,9 +205,29 @@ class ClaudeAgent:
                     ) and stdout_text.strip()
 
                     if not is_warning_only:
-                        error_msg = f"Claude CLI error: {stderr_output}"
+                        error_details = {"returncode": process.returncode}
+                        stdout_lower = stdout_text.lower() if stdout_text else ""
+                        
+                        # Detect credit balance issues
+                        if "credit balance is too low" in stdout_lower or "quota" in stdout_lower:
+                            error_msg = "Claude CLI credit balance is too low"
+                            if stdout_text:
+                                error_msg += f": {stdout_text.strip()}"
+                                error_details["stdout"] = stdout_text.strip()
+                        # Detect authentication issues
+                        elif "authentication" in stdout_lower or "unauthorized" in stdout_lower or "api key" in stdout_lower:
+                            error_msg = "Claude CLI authentication failed"
+                            if stdout_text:
+                                error_msg += f": {stdout_text.strip()}"
+                                error_details["stdout"] = stdout_text.strip()
+                        else:
+                            # Generic error handling
+                            error_msg = f"Claude CLI error: {stderr_output}"
+                            if stderr_output:
+                                error_details["stderr"] = stderr_output
+                        
                         logger.error(error_msg)
-                        raise AgentError(error_msg, details={"returncode": process.returncode})
+                        raise AgentError(error_msg, details=error_details)
 
                 if self.output_format == "json":
                     try:
@@ -244,14 +264,31 @@ class ClaudeAgent:
                         error_msg = f"Claude CLI error (exit code {result.returncode})"
                         error_details = {"returncode": result.returncode}
 
-                        if result.stderr:
-                            error_msg += f": {result.stderr}"
-                            error_details["stderr"] = result.stderr
+                        # Check stdout for specific error messages
+                        stdout_lower = result.stdout.lower() if result.stdout else ""
+                        
+                        # Detect credit balance issues
+                        if "credit balance is too low" in stdout_lower or "quota" in stdout_lower:
+                            error_msg = "Claude CLI credit balance is too low"
+                            if result.stdout:
+                                error_msg += f": {result.stdout.strip()}"
+                                error_details["stdout"] = result.stdout.strip()
+                        # Detect authentication issues
+                        elif "authentication" in stdout_lower or "unauthorized" in stdout_lower or "api key" in stdout_lower:
+                            error_msg = "Claude CLI authentication failed"
+                            if result.stdout:
+                                error_msg += f": {result.stdout.strip()}"
+                                error_details["stdout"] = result.stdout.strip()
                         else:
-                            error_msg += ": No error message provided"
-                        if result.stdout:
-                            error_msg += f"\nStdout: {result.stdout[:200]}"
-                            error_details["stdout_preview"] = result.stdout[:200]
+                            # Generic error handling
+                            if result.stderr:
+                                error_msg += f": {result.stderr}"
+                                error_details["stderr"] = result.stderr
+                            else:
+                                error_msg += ": No error message provided"
+                            if result.stdout:
+                                error_msg += f"\nStdout: {result.stdout[:200]}"
+                                error_details["stdout_preview"] = result.stdout[:200]
 
                         logger.error(error_msg)
                         raise AgentError(error_msg, details=error_details)

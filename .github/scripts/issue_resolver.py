@@ -18,7 +18,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
 # Import core agent, retry utilities, and exceptions
 from agents.issue_resolver import IssueResolver
 from utils.retry import retry_github_api
-from utils.exceptions import MissingEnvironmentVariableError, get_exception_for_github_error
+from utils.exceptions import (
+    MissingEnvironmentVariableError,
+    GitHubAPIError,
+    CreditBalanceError,
+    RateLimitError,
+    AuthenticationError,
+    AnthropicAPIError,
+    get_exception_for_github_error
+)
 from logging_config import get_logger
 
 # Initialize logger
@@ -73,6 +81,56 @@ try:
     agent.resolve_issue(specific_issue=specific_issue_num)
     logger.info("Issue resolver completed successfully")
 
+except CreditBalanceError as e:
+    logger.error(
+        "❌ Claude CLI credit balance is too low. Please add credits to your Claude account.",
+        extra={"error_details": e.details}
+    )
+    logger.error(f"Error: {e}")
+    sys.exit(1)
+
+except RateLimitError as e:
+    logger.error(
+        f"❌ {e.service} API rate limit exceeded.",
+        extra={
+            "service": e.service,
+            "retry_after": e.retry_after
+        }
+    )
+    if e.retry_after:
+        logger.error(f"Please retry after: {e.retry_after}")
+    sys.exit(1)
+
+except AuthenticationError as e:
+    logger.error(
+        "❌ Authentication failed. Please check your API credentials.",
+        extra={"error_details": e.details}
+    )
+    logger.error(f"Error: {e}")
+    sys.exit(1)
+
+except AnthropicAPIError as e:
+    logger.error(
+        "❌ Claude API error occurred.",
+        extra={
+            "status_code": e.status_code,
+            "error_type": e.error_type
+        }
+    )
+    logger.error(f"Error: {e}")
+    sys.exit(1)
+
+except GitHubAPIError as e:
+    logger.error(
+        "❌ GitHub API error occurred.",
+        extra={
+            "status_code": e.status_code,
+            "response": e.response
+        }
+    )
+    logger.error(f"Error: {e}")
+    sys.exit(1)
+
 except Exception as e:
-    logger.exception("Fatal error in issue resolver")
+    logger.exception("❌ Fatal error in issue resolver")
     sys.exit(1)

@@ -105,6 +105,18 @@ class AuthenticationError(APIError):
     pass
 
 
+class CreditBalanceError(APIError):
+    """Raised when API credit balance is too low or quota exceeded."""
+
+    def __init__(self, service: str, message: str = None):
+        default_msg = f"{service} credit balance is too low or quota exceeded"
+        super().__init__(
+            message or default_msg,
+            details={"service": service}
+        )
+        self.service = service
+
+
 # ============================================================================
 # Git and Repository Errors
 # ============================================================================
@@ -391,7 +403,7 @@ def get_exception_for_anthropic_error(error, default_message: str = None) -> Ant
     Convert Anthropic API error to appropriate exception.
 
     Args:
-        error: Anthropic API error
+        error: Anthropic API error or AgentError
         default_message: Default message if none can be extracted
 
     Returns:
@@ -401,6 +413,31 @@ def get_exception_for_anthropic_error(error, default_message: str = None) -> Ant
     status_code = None
     error_type = None
 
+    # Handle AgentError from Claude CLI
+    if isinstance(error, AgentError):
+        error_str = str(error).lower()
+        
+        # Check for credit balance issues
+        if 'credit balance is too low' in error_str or 'quota' in error_str:
+            return CreditBalanceError(
+                'Claude CLI',
+                message=str(error)
+            )
+        
+        # Check for authentication issues
+        if 'authentication' in error_str or 'unauthorized' in error_str or 'api key' in error_str:
+            return AuthenticationError(f"Claude CLI authentication failed: {error}")
+        
+        # Return as generic AnthropicAPIError with details from AgentError
+        if hasattr(error, 'details'):
+            return AnthropicAPIError(
+                str(error),
+                status_code=error.details.get('returncode'),
+                error_type='cli_error'
+            )
+        return AnthropicAPIError(str(error), error_type='cli_error')
+
+    # Handle standard Anthropic SDK errors
     if hasattr(error, 'status_code'):
         status_code = error.status_code
 

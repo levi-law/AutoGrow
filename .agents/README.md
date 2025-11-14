@@ -20,6 +20,16 @@ If you're maintaining the template repository itself:
 - **[CONTRIBUTING_GUIDE.md](CONTRIBUTING_GUIDE.md)** - Detailed contribution process
 - **[project-rules.md](project-rules.md)** - Master AI agent guidelines
 
+## Documentation
+
+### Error Handling
+- **[ERROR_HANDLING_IMPROVEMENTS.md](ERROR_HANDLING_IMPROVEMENTS.md)** - Recent error handling improvements
+- **[QUICK_ERROR_REFERENCE.md](QUICK_ERROR_REFERENCE.md)** - Quick reference for common errors
+- **[../docs/ERROR_HANDLING.md](../docs/ERROR_HANDLING.md)** - Comprehensive error handling guide
+
+### Scripts
+- **[scripts/test_credit_error.py](scripts/test_credit_error.py)** - Test credit balance error handling
+
 ## Other Files
 
 The following files are planning/launch documents (can be archived or removed after launch):
